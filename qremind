@@ -3,6 +3,8 @@
 
 import os
 import sys
+import tty
+import termios
 import json
 import time
 import signal
@@ -104,8 +106,40 @@ def notify(text, cfg):
 
 # ── Input helpers ─────────────────────────────────────────────────────────────
 
-def _cancelled(val):
-    return val.lower() == "esc" or "\x1b" in val
+def _readline_or_cancel(prompt):
+    """Read a line of input. Returns the string, or None if ESC is pressed."""
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    buf = []
+    try:
+        tty.setraw(fd)
+        while True:
+            ch = sys.stdin.read(1)
+            if ch == "\x1b":
+                sys.stdout.write("\r\n")
+                sys.stdout.flush()
+                return None
+            elif ch in ("\r", "\n"):
+                sys.stdout.write("\r\n")
+                sys.stdout.flush()
+                return "".join(buf)
+            elif ch in ("\x7f", "\x08"):  # backspace / delete
+                if buf:
+                    buf.pop()
+                    sys.stdout.write("\x08 \x08")
+                    sys.stdout.flush()
+            elif ch == "\x03":  # Ctrl-C
+                sys.stdout.write("\r\n")
+                sys.stdout.flush()
+                raise KeyboardInterrupt
+            elif ch >= " ":
+                buf.append(ch)
+                sys.stdout.write(ch)
+                sys.stdout.flush()
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
 def prompt_date(default=None):
@@ -113,9 +147,10 @@ def prompt_date(default=None):
         default = datetime.now().strftime("%Y%m%d")
     prompt = f"Date (YYYYMMDD) [{default}] [esc=cancel]: "
     while True:
-        val = input(prompt).strip()
-        if _cancelled(val):
+        val = _readline_or_cancel(prompt)
+        if val is None:
             return None
+        val = val.strip()
         if not val:
             return default
         try:
@@ -128,16 +163,17 @@ def prompt_date(default=None):
 
 def prompt_time(default=None):
     default_display = default if default and default != "0000" else None
-    ans = input(
+    ans = _readline_or_cancel(
         f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (y/N): "
-    ).strip().lower()
-    if _cancelled(ans) or ans != "y":
+    )
+    if ans is None or ans.strip().lower() != "y":
         return default or "0000"
     prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
     while True:
-        val = input(prompt).strip()
-        if _cancelled(val):
+        val = _readline_or_cancel(prompt)
+        if val is None:
             return None
+        val = val.strip()
         if not val and default:
             return default
         try:
