@@ -164,9 +164,11 @@ def prompt_date(default=None):
 def prompt_time(default=None):
     default_display = default if default and default != "0000" else None
     ans = _readline_or_cancel(
-        f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (y/N): "
+        f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (Y/n): "
     )
-    if ans is None or ans.strip().lower() != "y":
+    if ans is None:
+        return None
+    if ans.strip().lower() == "n":
         return default or "0000"
     prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
     while True:
@@ -174,8 +176,10 @@ def prompt_time(default=None):
         if val is None:
             return None
         val = val.strip()
-        if not val and default:
-            return default
+        if not val:
+            fallback = default if default else datetime.now().strftime("%H%M")
+            print(f"  → {datetime.strptime(fallback, '%H%M').strftime('%I:%M %p')}")
+            return fallback
         try:
             t = datetime.strptime(val, "%H%M")
             print(f"  → {t.strftime('%I:%M %p')}")
@@ -229,12 +233,18 @@ def cmd_add(cfg):
     if time_str is None:
         print("Cancelled.")
         return
-    topic = input("Topic: ").strip()
-    description = input("Description: ").strip()
+    topic = _readline_or_cancel("Topic: ")
+    if topic is None:
+        print("Cancelled.")
+        return
+    description = _readline_or_cancel("Description: ")
+    if description is None:
+        print("Cancelled.")
+        return
 
     reminders = load_reminders(cfg["data_file"])
     refno = next_refno(reminders)
-    reminders.append([refno, date_str + time_str, topic, description])
+    reminders.append([refno, date_str + time_str, topic.strip(), description.strip()])
 
     Path(cfg["data_file"]).parent.mkdir(parents=True, exist_ok=True)
     save_reminders(cfg["data_file"], reminders)
