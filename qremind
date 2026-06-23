@@ -104,13 +104,19 @@ def notify(text, cfg):
 
 # ── Input helpers ─────────────────────────────────────────────────────────────
 
+def _cancelled(val):
+    return val.lower() == "esc" or "\x1b" in val
+
+
 def prompt_date(default=None):
-    prompt = f"Date (YYYYMMDD){f' [{default}]' if default else ''} [esc=cancel]: "
+    if default is None:
+        default = datetime.now().strftime("%Y%m%d")
+    prompt = f"Date (YYYYMMDD) [{default}] [esc=cancel]: "
     while True:
         val = input(prompt).strip()
-        if val.lower() == "esc":
+        if _cancelled(val):
             return None
-        if not val and default:
+        if not val:
             return default
         try:
             dt = datetime.strptime(val, "%Y%m%d")
@@ -125,12 +131,12 @@ def prompt_time(default=None):
     ans = input(
         f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (y/N): "
     ).strip().lower()
-    if ans != "y":
+    if _cancelled(ans) or ans != "y":
         return default or "0000"
     prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
     while True:
         val = input(prompt).strip()
-        if val.lower() == "esc":
+        if _cancelled(val):
             return None
         if not val and default:
             return default
