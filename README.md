@@ -34,6 +34,12 @@ qremind --show                           Check and display any due reminders now
 qremind --status                         Show config and timer/daemon status
 ```
 
+### Editing a reminder
+
+`qremind --edit N` opens an interactive prompt for each field of reminder #N, pre-filled with the current value. Press Enter to keep a field unchanged, type a new value to replace it, or press ESC to cancel without saving.
+
+### Bulk operations
+
 Multiple reminders can be targeted in one call using comma-separated IDs:
 
 ```sh
