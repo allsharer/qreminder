@@ -1,0 +1,553 @@
+#!/usr/bin/env python3
+"""qremind - Desktop reminder app with configurable periodic checking."""
+
+import os
+import sys
+import json
+import time
+import signal
+import subprocess
+import argparse
+from datetime import datetime
+from pathlib import Path
+
+CONFIG_DIR = Path.home() / ".config" / "qreminder"
+CONFIG_FILE = CONFIG_DIR / "config.json"
+PID_FILE = CONFIG_DIR / "daemon.pid"
+
+DEFAULT_CONFIG = {
+    "data_file": str(Path.home() / ".config/qReminder/reminders.dat"),
+    "hidden_file": str(Path.home() / ".config/qReminder/hidden.txt"),
+    "check_interval_minutes": 60,
+    "notification": "zenity",  # "zenity" or "notify-send"
+}
+
+
+# ── Config ────────────────────────────────────────────────────────────────────
+
+def load_config():
+    cfg = DEFAULT_CONFIG.copy()
+    if CONFIG_FILE.exists():
+        try:
+            cfg.update(json.loads(CONFIG_FILE.read_text()))
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Warning: could not read config: {e}", file=sys.stderr)
+    return cfg
+
+
+def save_config(cfg):
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(cfg, indent=2) + "\n")
+
+
+# ── Data helpers ──────────────────────────────────────────────────────────────
+
+def load_reminders(data_file):
+    path = Path(data_file)
+    if not path.exists():
+        return []
+    reminders = []
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split(";", 3)
+        if len(parts) == 4:
+            reminders.append(parts)
+    return reminders
+
+
+def save_reminders(data_file, reminders):
+    content = "\n".join(";".join(r) for r in reminders)
+    Path(data_file).write_text(content + "\n" if content else "")
+
+
+def load_hidden(hidden_file):
+    path = Path(hidden_file)
+    if not path.exists():
+        return set()
+    return {line.strip() for line in path.read_text().splitlines() if line.strip()}
+
+
+def save_hidden(hidden_file, hidden):
+    Path(hidden_file).parent.mkdir(parents=True, exist_ok=True)
+    sorted_ids = sorted(hidden, key=lambda x: int(x) if x.isdigit() else 0)
+    content = "\n".join(sorted_ids)
+    Path(hidden_file).write_text(content + "\n" if content else "")
+
+
+def next_refno(reminders):
+    if not reminders:
+        return "1"
+    return str(max(int(r[0]) for r in reminders) + 1)
+
+
+def format_dt(datetime_str):
+    return datetime.strptime(datetime_str, "%Y%m%d%H%M").strftime("%b-%d-%Y %H:%M")
+
+
+# ── Notification ──────────────────────────────────────────────────────────────
+
+def notify(text, cfg):
+    method = cfg.get("notification", "zenity")
+    if method == "notify-send":
+        subprocess.run(
+            ["notify-send", "-a", "qremind", "-i", "appointment-soon", "Reminders Due", text],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    else:
+        subprocess.run(
+            ["zenity", "--info", "--title", "qremind", "--text", text, "--width=500"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+
+# ── Input helpers ─────────────────────────────────────────────────────────────
+
+def prompt_date(default=None):
+    prompt = f"Date (YYYYMMDD){f' [{default}]' if default else ''} [esc=cancel]: "
+    while True:
+        val = input(prompt).strip()
+        if val.lower() == "esc":
+            return None
+        if not val and default:
+            return default
+        try:
+            dt = datetime.strptime(val, "%Y%m%d")
+            print(f"  → {dt.strftime('%b %d, %Y')}")
+            return val
+        except ValueError:
+            print("  Invalid date. Use YYYYMMDD (e.g. 20261231).")
+
+
+def prompt_time(default=None):
+    default_display = default if default and default != "0000" else None
+    ans = input(
+        f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (y/N): "
+    ).strip().lower()
+    if ans != "y":
+        return default or "0000"
+    prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
+    while True:
+        val = input(prompt).strip()
+        if val.lower() == "esc":
+            return None
+        if not val and default:
+            return default
+        try:
+            t = datetime.strptime(val, "%H%M")
+            print(f"  → {t.strftime('%I:%M %p')}")
+            return val
+        except ValueError:
+            print("  Invalid time. Use HHMM (e.g. 0930).")
+
+
+# ── Commands ──────────────────────────────────────────────────────────────────
+
+def cmd_show(cfg):
+    reminders = load_reminders(cfg["data_file"])
+    hidden = load_hidden(cfg["hidden_file"])
+    now = datetime.now()
+
+    due = []
+    for refno, dt_str, topic, desc in reminders:
+        if refno in hidden:
+            continue
+        if datetime.strptime(dt_str, "%Y%m%d%H%M") <= now:
+            due.append(f"Reminder #{refno}\nDate: {format_dt(dt_str)}\nTopic: {topic}\n{desc}")
+
+    if due:
+        notify("\n\n".join(due), cfg)
+
+
+def cmd_list(cfg):
+    reminders = load_reminders(cfg["data_file"])
+    if not reminders:
+        print("No reminders.")
+        return
+
+    hidden = load_hidden(cfg["hidden_file"])
+    now = datetime.now()
+
+    for refno, dt_str, topic, desc in reminders:
+        reminder_time = datetime.strptime(dt_str, "%Y%m%d%H%M")
+        status = "Upcoming" if reminder_time > now else "Due"
+        tag = " [Hidden]" if refno in hidden else ""
+        print(f"#{refno:>3}  {format_dt(dt_str)}  [{status}{tag}]")
+        print(f"       Topic: {topic}")
+        print(f"       {desc}\n")
+
+
+def cmd_add(cfg):
+    date_str = prompt_date()
+    if date_str is None:
+        print("Cancelled.")
+        return
+    time_str = prompt_time()
+    if time_str is None:
+        print("Cancelled.")
+        return
+    topic = input("Topic: ").strip()
+    description = input("Description: ").strip()
+
+    reminders = load_reminders(cfg["data_file"])
+    refno = next_refno(reminders)
+    reminders.append([refno, date_str + time_str, topic, description])
+
+    Path(cfg["data_file"]).parent.mkdir(parents=True, exist_ok=True)
+    save_reminders(cfg["data_file"], reminders)
+    print(f"Reminder #{refno} added.")
+
+
+def cmd_edit(refno_str, cfg):
+    reminders = load_reminders(cfg["data_file"])
+    for i, (refno, dt_str, topic, desc) in enumerate(reminders):
+        if refno != refno_str:
+            continue
+        print(f"Editing #{refno}: {topic}  [{format_dt(dt_str)}]")
+        print("(Press Enter to keep the current value)\n")
+
+        date_str = prompt_date(default=dt_str[:8])
+        if date_str is None:
+            print("Cancelled.")
+            return
+
+        time_str = prompt_time(default=dt_str[8:])
+        if time_str is None:
+            print("Cancelled.")
+            return
+
+        new_topic = input(f"Topic [{topic}]: ").strip() or topic
+        new_desc = input(f"Description [{desc}]: ").strip() or desc
+
+        reminders[i] = [refno, date_str + time_str, new_topic, new_desc]
+        save_reminders(cfg["data_file"], reminders)
+        print(f"Reminder #{refno} updated.")
+        return
+    print(f"Reminder #{refno_str} not found.")
+
+
+def cmd_hide(refno_arg, cfg):
+    targets = {r.strip() for r in refno_arg.split(",")}
+    existing = {r[0] for r in load_reminders(cfg["data_file"])}
+    not_found = sorted(targets - existing, key=lambda x: int(x) if x.isdigit() else 0)
+    to_hide = targets & existing
+    for n in not_found:
+        print(f"Reminder #{n} not found.")
+    if not to_hide:
+        return
+    hidden = load_hidden(cfg["hidden_file"])
+    hidden |= to_hide
+    save_hidden(cfg["hidden_file"], hidden)
+    for n in sorted(to_hide, key=lambda x: int(x) if x.isdigit() else 0):
+        print(f"Reminder #{n} hidden (won't appear in notifications).")
+
+
+def cmd_unhide(refno_arg, cfg):
+    targets = {r.strip() for r in refno_arg.split(",")}
+    hidden = load_hidden(cfg["hidden_file"])
+    not_hidden = sorted(targets - hidden, key=lambda x: int(x) if x.isdigit() else 0)
+    to_unhide = targets & hidden
+    for n in not_hidden:
+        print(f"Reminder #{n} is not hidden.")
+    if not to_unhide:
+        return
+    save_hidden(cfg["hidden_file"], hidden - to_unhide)
+    for n in sorted(to_unhide, key=lambda x: int(x) if x.isdigit() else 0):
+        print(f"Reminder #{n} unhidden.")
+
+
+def cmd_delete(refno_arg, cfg):
+    targets = {r.strip() for r in refno_arg.split(",")}
+    reminders = load_reminders(cfg["data_file"])
+    existing = {r[0] for r in reminders}
+    not_found = sorted(targets - existing, key=lambda x: int(x) if x.isdigit() else 0)
+    to_delete = targets & existing
+    if not_found:
+        for n in not_found:
+            print(f"Reminder #{n} not found.")
+    if not to_delete:
+        return
+    save_reminders(cfg["data_file"], [r for r in reminders if r[0] not in to_delete])
+    hidden = load_hidden(cfg["hidden_file"])
+    if hidden & to_delete:
+        save_hidden(cfg["hidden_file"], hidden - to_delete)
+    for n in sorted(to_delete, key=lambda x: int(x) if x.isdigit() else 0):
+        print(f"Reminder #{n} deleted.")
+
+
+def cmd_clean(cfg):
+    reminders = load_reminders(cfg["data_file"])
+    hidden = load_hidden(cfg["hidden_file"])
+    remaining = [r for r in reminders if r[0] not in hidden]
+    removed = len(reminders) - len(remaining)
+    renumbered = [[str(i + 1)] + r[1:] for i, r in enumerate(remaining)]
+    save_reminders(cfg["data_file"], renumbered)
+    try:
+        Path(cfg["hidden_file"]).unlink()
+    except FileNotFoundError:
+        pass
+    print(f"Removed {removed} hidden reminder(s). Remaining reminders renumbered.")
+
+
+def cmd_config(keys_vals, cfg):
+    if not keys_vals:
+        print(json.dumps(cfg, indent=2))
+        return
+    for kv in keys_vals:
+        if "=" not in kv:
+            print(f"Error: expected key=value, got: {kv}")
+            return
+        key, val = kv.split("=", 1)
+        if key not in DEFAULT_CONFIG:
+            print(f"Unknown config key: {key}")
+            print(f"Valid keys: {', '.join(DEFAULT_CONFIG)}")
+            return
+        if key == "check_interval_minutes":
+            try:
+                val = int(val)
+            except ValueError:
+                print("check_interval_minutes must be an integer.")
+                return
+        cfg[key] = val
+    save_config(cfg)
+    print("Config saved.")
+    if any(kv.startswith("check_interval_minutes=") for kv in keys_vals):
+        timer = Path.home() / ".config/systemd/user/qreminder.timer"
+        if timer.exists():
+            print("Note: systemd timer is installed — re-run --install to apply the new interval.")
+
+
+def cmd_status(cfg):
+    print(f"Config: {CONFIG_FILE}")
+    print(json.dumps(cfg, indent=2))
+    print()
+
+    timer = Path.home() / ".config/systemd/user/qreminder.timer"
+    if timer.exists():
+        result = subprocess.run(
+            ["systemctl", "--user", "status", "qreminder.timer"],
+            capture_output=True, text=True,
+        )
+        print("Systemd timer status:")
+        print(result.stdout or result.stderr)
+    elif PID_FILE.exists():
+        pid = PID_FILE.read_text().strip()
+        try:
+            os.kill(int(pid), 0)
+            print(f"Daemon running (PID {pid}).")
+        except (ProcessLookupError, ValueError):
+            print("Daemon PID file exists but process is not running (stale).")
+    else:
+        print("No timer or daemon active. Run --install or --daemon to enable periodic checks.")
+
+
+# ── Daemon ────────────────────────────────────────────────────────────────────
+
+def cmd_daemon(cfg):
+    interval_sec = cfg.get("check_interval_minutes", 60) * 60
+
+    def handle_signal(sig, _frame):
+        if PID_FILE.exists():
+            PID_FILE.unlink()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, handle_signal)
+    signal.signal(signal.SIGINT, handle_signal)
+
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    PID_FILE.write_text(str(os.getpid()))
+
+    try:
+        print(
+            f"qremind daemon started (PID {os.getpid()}, "
+            f"checking every {cfg['check_interval_minutes']} minute(s))"
+        )
+        while True:
+            cmd_show(cfg)
+            time.sleep(interval_sec)
+    finally:
+        if PID_FILE.exists():
+            PID_FILE.unlink()
+
+
+def cmd_stop(_cfg):
+    if not PID_FILE.exists():
+        print("No daemon PID file found.")
+        return
+    pid_str = PID_FILE.read_text().strip()
+    try:
+        os.kill(int(pid_str), signal.SIGTERM)
+        print(f"Daemon (PID {pid_str}) stopped.")
+    except ProcessLookupError:
+        print("Daemon not running (removing stale PID file).")
+        PID_FILE.unlink()
+
+
+# ── Install / uninstall ───────────────────────────────────────────────────────
+
+def cmd_install_systemd(cfg):
+    script_path = Path(sys.argv[0]).resolve()
+    interval = cfg.get("check_interval_minutes", 60)
+
+    systemd_dir = Path.home() / ".config/systemd/user"
+    systemd_dir.mkdir(parents=True, exist_ok=True)
+
+    (systemd_dir / "qreminder.service").write_text(
+        "[Unit]\nDescription=qremind notification check\n\n"
+        f"[Service]\nType=oneshot\nExecStart={script_path} --show\n"
+    )
+    (systemd_dir / "qreminder.timer").write_text(
+        f"[Unit]\nDescription=qremind - check every {interval} minute(s)\n\n"
+        f"[Timer]\nOnBootSec=1min\nOnUnitActiveSec={interval}min\n\n"
+        "[Install]\nWantedBy=timers.target\n"
+    )
+
+    subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+    subprocess.run(["systemctl", "--user", "enable", "--now", "qreminder.timer"], check=True)
+    print(f"Systemd user timer installed (every {interval} minutes).")
+    print("Check status:    systemctl --user status qreminder.timer")
+    print("View next fire:  systemctl --user list-timers qreminder.timer")
+
+
+def cmd_install_autostart(cfg):
+    script_path = Path(sys.argv[0]).resolve()
+    autostart_dir = Path.home() / ".config/autostart"
+    autostart_dir.mkdir(parents=True, exist_ok=True)
+    desktop = autostart_dir / "qreminder.desktop"
+    desktop.write_text(
+        "[Desktop Entry]\nType=Application\nName=qremind\n"
+        f"Exec={script_path} --daemon\n"
+        "X-GNOME-Autostart-enabled=true\nNoDisplay=true\n"
+        "Comment=qremind periodic reminder daemon\n"
+    )
+    print(f"GNOME autostart entry installed: {desktop}")
+    print(f"Daemon will check every {cfg.get('check_interval_minutes', 60)} minute(s) after login.")
+
+
+def cmd_uninstall():
+    removed = []
+
+    service = Path.home() / ".config/systemd/user/qreminder.service"
+    timer = Path.home() / ".config/systemd/user/qreminder.timer"
+    if timer.exists() or service.exists():
+        subprocess.run(
+            ["systemctl", "--user", "disable", "--now", "qreminder.timer"],
+            capture_output=True,
+        )
+        for f in (service, timer):
+            if f.exists():
+                f.unlink()
+                removed.append(str(f))
+        subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
+
+    autostart = Path.home() / ".config/autostart/qreminder.desktop"
+    if autostart.exists():
+        autostart.unlink()
+        removed.append(str(autostart))
+
+    if removed:
+        print("Removed:\n  " + "\n  ".join(removed))
+    else:
+        print("Nothing to uninstall.")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="qremind",
+        description="Desktop reminder app with configurable periodic checking.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+examples:
+  qremind --add                               Add a new reminder interactively
+  qremind --list                              List all reminders with status
+  qremind --edit 2                            Edit reminder #2
+  qremind --hide 3                            Suppress reminder #3 from notifications
+  qremind --hide 3,7,12                       Suppress multiple reminders
+  qremind --unhide 3                          Restore reminder #3 to notifications
+  qremind --unhide 3,7,12                     Restore multiple reminders
+  qremind --delete 3                          Permanently delete reminder #3
+  qremind --delete 1,4,6,10                  Permanently delete multiple reminders
+  qremind --clean                             Remove hidden reminders and renumber
+  qremind --config                            Show current config
+  qremind --config check_interval_minutes=30  Set check interval to 30 minutes
+  qremind --config notification=notify-send   Switch to desktop notification style
+  qremind --install                           Install systemd user timer (recommended)
+  qremind --install-autostart                 Install GNOME autostart (daemon mode)
+  qremind --uninstall                         Remove timer and/or autostart entry
+  qremind --status                            Show timer/daemon status
+""",
+    )
+
+    parser.add_argument("--show", action="store_true",
+                        help="Check and display due reminders (called by timer/daemon)")
+    parser.add_argument("--list", action="store_true",
+                        help="List all reminders")
+    parser.add_argument("--add", action="store_true",
+                        help="Add a new reminder interactively")
+    parser.add_argument("--edit", metavar="N",
+                        help="Edit reminder #N")
+    parser.add_argument("--hide", metavar="N[,N...]",
+                        help="Suppress reminder(s) from notifications (comma-separated)")
+    parser.add_argument("--unhide", metavar="N[,N...]",
+                        help="Restore suppressed reminder(s) (comma-separated)")
+    parser.add_argument("--delete", metavar="N[,N...]",
+                        help="Permanently delete reminder(s) by number (comma-separated)")
+    parser.add_argument("--clean", action="store_true",
+                        help="Remove hidden reminders and renumber")
+    parser.add_argument("--daemon", action="store_true",
+                        help="Run as background daemon (checks at configured interval)")
+    parser.add_argument("--stop", action="store_true",
+                        help="Stop the running daemon")
+    parser.add_argument("--install", action="store_true",
+                        help="Install systemd user timer (persists across reboots)")
+    parser.add_argument("--install-autostart", action="store_true", dest="install_autostart",
+                        help="Install GNOME autostart entry (daemon mode)")
+    parser.add_argument("--uninstall", action="store_true",
+                        help="Remove systemd timer and/or autostart entry")
+    parser.add_argument("--status", action="store_true",
+                        help="Show config and timer/daemon status")
+    parser.add_argument("--config", nargs="*", metavar="key=value",
+                        help="Show config (no args) or set key=value pairs")
+
+    args = parser.parse_args()
+    cfg = load_config()
+
+    if args.show:
+        cmd_show(cfg)
+    elif args.list:
+        cmd_list(cfg)
+    elif args.add:
+        cmd_add(cfg)
+    elif args.edit:
+        cmd_edit(args.edit, cfg)
+    elif args.hide:
+        cmd_hide(args.hide, cfg)
+    elif args.unhide:
+        cmd_unhide(args.unhide, cfg)
+    elif args.delete:
+        cmd_delete(args.delete, cfg)
+    elif args.clean:
+        cmd_clean(cfg)
+    elif args.daemon:
+        cmd_daemon(cfg)
+    elif args.stop:
+        cmd_stop(cfg)
+    elif args.install:
+        cmd_install_systemd(cfg)
+    elif args.install_autostart:
+        cmd_install_autostart(cfg)
+    elif args.uninstall:
+        cmd_uninstall()
+    elif args.status:
+        cmd_status(cfg)
+    elif args.config is not None:
+        cmd_config(args.config, cfg)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
