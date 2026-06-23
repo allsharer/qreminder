@@ -34,6 +34,17 @@ qremind --show                           Check and display any due reminders now
 qremind --status                         Show config and timer/daemon status
 ```
 
+### Adding a reminder
+
+`qremind --add` walks through each field interactively:
+
+- **Date** — defaults to today if left blank; format `YYYYMMDD`
+- **Include time?** — defaults to yes (Enter = Y); enter `n` to skip
+- **Time** — defaults to the current time if left blank; format `HHMM`
+- **Topic / Description** — free text
+
+Press ESC at any prompt to cancel without saving.
+
 ### Editing a reminder
 
 `qremind --edit N` opens an interactive prompt for each field of reminder #N, pre-filled with the current value. Press Enter to keep a field unchanged, type a new value to replace it, or press ESC to cancel without saving.
