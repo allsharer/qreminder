@@ -49,6 +49,18 @@ Press ESC at any prompt to cancel without saving.
 
 `qremind --edit N` opens an interactive prompt for each field of reminder #N, pre-filled with the current value. Press Enter to keep a field unchanged, type a new value to replace it, or press ESC to cancel without saving.
 
+### Notifications (--show)
+
+`qremind --show` checks for due reminders and surfaces them as desktop notifications. This is what the systemd timer and daemon call automatically.
+
+With **zenity** (default), each due reminder appears in its own dialog with three buttons:
+
+- **Hide** — suppresses the reminder from future notifications (reversible with `--unhide`)
+- **Delete** — permanently removes the reminder
+- **Dismiss** — closes the dialog without any action
+
+With **notify-send**, all due reminders are sent as a single passive notification with no interactive buttons.
+
 ### Bulk operations
 
 Multiple reminders can be targeted in one call using comma-separated IDs:
