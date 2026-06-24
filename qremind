@@ -90,18 +90,25 @@ def format_dt(datetime_str):
 
 # ── Notification ──────────────────────────────────────────────────────────────
 
-def notify(text, cfg):
-    method = cfg.get("notification", "zenity")
-    if method == "notify-send":
-        subprocess.run(
-            ["notify-send", "-a", "qremind", "-i", "appointment-soon", "Reminders Due", text],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-    else:
-        subprocess.run(
-            ["zenity", "--info", "--title", "qremind", "--text", text, "--width=500"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+def _zenity_reminder(refno, text):
+    """Show a single reminder in zenity. Returns 'hide', 'delete', or 'dismiss'."""
+    result = subprocess.run(
+        [
+            "zenity", "--question",
+            "--title", f"Reminder Due (#{refno})",
+            "--text", text,
+            "--width=500",
+            "--ok-label", "Hide",
+            "--cancel-label", "Dismiss",
+            "--extra-button", "Delete",
+        ],
+        capture_output=True, text=True,
+    )
+    if result.returncode == 0:
+        return "hide"
+    if result.stdout.strip() == "Delete":
+        return "delete"
+    return "dismiss"
 
 
 # ── Input helpers ─────────────────────────────────────────────────────────────
@@ -194,16 +201,42 @@ def cmd_show(cfg):
     reminders = load_reminders(cfg["data_file"])
     hidden = load_hidden(cfg["hidden_file"])
     now = datetime.now()
+    method = cfg.get("notification", "zenity")
 
-    due = []
-    for refno, dt_str, topic, desc in reminders:
-        if refno in hidden:
-            continue
-        if datetime.strptime(dt_str, "%Y%m%d%H%M") <= now:
-            due.append(f"Reminder #{refno}\nDate: {format_dt(dt_str)}\nTopic: {topic}\n{desc}")
+    due = [
+        r for r in reminders
+        if r[0] not in hidden and datetime.strptime(r[1], "%Y%m%d%H%M") <= now
+    ]
+    if not due:
+        return
 
-    if due:
-        notify("\n\n".join(due), cfg)
+    if method == "notify-send":
+        text = "\n\n".join(
+            f"Reminder #{refno}\nDate: {format_dt(dt_str)}\nTopic: {topic}\n{desc}"
+            for refno, dt_str, topic, desc in due
+        )
+        subprocess.run(
+            ["notify-send", "-a", "qremind", "-i", "appointment-soon", "Reminders Due", text],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        return
+
+    to_hide, to_delete = set(), set()
+    for refno, dt_str, topic, desc in due:
+        text = f"Date: {format_dt(dt_str)}\nTopic: {topic}\n{desc}"
+        action = _zenity_reminder(refno, text)
+        if action == "hide":
+            to_hide.add(refno)
+        elif action == "delete":
+            to_delete.add(refno)
+
+    if to_hide:
+        save_hidden(cfg["hidden_file"], hidden | to_hide)
+    if to_delete:
+        remaining = [r for r in reminders if r[0] not in to_delete]
+        save_reminders(cfg["data_file"], remaining)
+        if hidden & to_delete:
+            save_hidden(cfg["hidden_file"], (hidden | to_hide) - to_delete)
 
 
 def cmd_list(cfg):
