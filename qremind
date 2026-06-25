@@ -10,7 +10,7 @@ import time
 import signal
 import subprocess
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 CONFIG_DIR = Path.home() / ".config" / "qreminder"
@@ -151,7 +151,7 @@ def _readline_or_cancel(prompt):
 
 def prompt_date(default=None):
     if default is None:
-        default = datetime.now().strftime("%Y%m%d")
+        default = (datetime.now() + timedelta(hours=24)).strftime("%Y%m%d")
     prompt = f"Date (YYYYMMDD) [{default}] [esc=cancel]: "
     while True:
         val = _readline_or_cancel(prompt)
