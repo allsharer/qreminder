@@ -160,8 +160,6 @@ def _add_months(dt, months):
 
 def prompt_date(default=None):
     now = datetime.now()
-    if default is None:
-        default = (now + timedelta(hours=24)).strftime("%Y%m%d")
 
     presets = [
         ("Tomorrow",   now + timedelta(days=1)),
@@ -178,14 +176,21 @@ def prompt_date(default=None):
     for i, (label, dt) in enumerate(presets, 1):
         print(f"  {i})  {label:<12} {dt.strftime('%b %d, %Y')}")
 
-    prompt = f"  #, date (YYYYMMDD), or Enter for +24h [{default}] [esc=cancel]: "
+    if default:
+        prompt = f"  #, or date (YYYYMMDD) [{default}] [esc=cancel]: "
+    else:
+        prompt = f"  #, or date (YYYYMMDD) [esc=cancel]: "
+
     while True:
         val = _readline_or_cancel(prompt)
         if val is None:
             return None
         val = val.strip()
         if not val:
-            return default
+            if default:
+                return default
+            print(f"  Enter a number 1–{len(presets)} or a date (YYYYMMDD).")
+            continue
         if val.isdigit() and 1 <= int(val) <= len(presets):
             chosen_dt = presets[int(val) - 1][1]
             chosen = chosen_dt.strftime("%Y%m%d")
