@@ -216,7 +216,6 @@ def prompt_time(default=None):
 
     now = datetime.now()
     presets = [
-        ("Now",       now),
         ("+1 hour",   now + timedelta(hours=1)),
         ("+2 hours",  now + timedelta(hours=2)),
         ("+4 hours",  now + timedelta(hours=4)),
