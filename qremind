@@ -302,8 +302,17 @@ def cmd_edit(refno_str, cfg):
             print("Cancelled.")
             return
 
-        new_topic = input(f"Topic [{topic}]: ").strip() or topic
-        new_desc = input(f"Description [{desc}]: ").strip() or desc
+        new_topic = _readline_or_cancel(f"Topic [{topic}]: ")
+        if new_topic is None:
+            print("Cancelled.")
+            return
+        new_topic = new_topic.strip() or topic
+
+        new_desc = _readline_or_cancel(f"Description [{desc}]: ")
+        if new_desc is None:
+            print("Cancelled.")
+            return
+        new_desc = new_desc.strip() or desc
 
         reminders[i] = [refno, date_str + time_str, new_topic, new_desc]
         save_reminders(cfg["data_file"], reminders)
