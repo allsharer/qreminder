@@ -10,6 +10,7 @@ import time
 import signal
 import subprocess
 import argparse
+import calendar
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -149,10 +150,35 @@ def _readline_or_cancel(prompt):
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
 
 
+def _add_months(dt, months):
+    month = dt.month - 1 + months
+    year = dt.year + month // 12
+    month = month % 12 + 1
+    day = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+
 def prompt_date(default=None):
+    now = datetime.now()
     if default is None:
-        default = (datetime.now() + timedelta(hours=24)).strftime("%Y%m%d")
-    prompt = f"Date (YYYYMMDD) [{default}] [esc=cancel]: "
+        default = (now + timedelta(hours=24)).strftime("%Y%m%d")
+
+    presets = [
+        ("Tomorrow",   now + timedelta(days=1)),
+        ("3 days",     now + timedelta(days=3)),
+        ("1 week",     now + timedelta(weeks=1)),
+        ("2 weeks",    now + timedelta(weeks=2)),
+        ("1 month",    _add_months(now, 1)),
+        ("3 months",   _add_months(now, 3)),
+        ("6 months",   _add_months(now, 6)),
+        ("1 year",     _add_months(now, 12)),
+    ]
+
+    print("Date:")
+    for i, (label, dt) in enumerate(presets, 1):
+        print(f"  {i})  {label:<12} {dt.strftime('%b %d, %Y')}")
+
+    prompt = f"  #, date (YYYYMMDD), or Enter for +24h [{default}] [esc=cancel]: "
     while True:
         val = _readline_or_cancel(prompt)
         if val is None:
@@ -160,12 +186,17 @@ def prompt_date(default=None):
         val = val.strip()
         if not val:
             return default
+        if val.isdigit() and 1 <= int(val) <= len(presets):
+            chosen_dt = presets[int(val) - 1][1]
+            chosen = chosen_dt.strftime("%Y%m%d")
+            print(f"  → {chosen_dt.strftime('%b %d, %Y')}")
+            return chosen
         try:
             dt = datetime.strptime(val, "%Y%m%d")
             print(f"  → {dt.strftime('%b %d, %Y')}")
             return val
         except ValueError:
-            print("  Invalid date. Use YYYYMMDD (e.g. 20261231).")
+            print(f"  Invalid. Enter a number 1–{len(presets)} or a date (YYYYMMDD).")
 
 
 def prompt_time(default=None):
