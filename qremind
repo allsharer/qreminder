@@ -171,11 +171,11 @@ def prompt_date(default=None):
 def prompt_time(default=None):
     default_display = default if default and default != "0000" else None
     ans = _readline_or_cancel(
-        f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (Y/n): "
+        f"Include a time (HHMM)?{f' current: {default}' if default_display else ''} (y/N): "
     )
     if ans is None:
         return None
-    if ans.strip().lower() == "n":
+    if ans.strip().lower() != "y":
         return default or "0000"
     prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
     while True:
