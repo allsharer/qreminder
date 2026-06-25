@@ -241,9 +241,11 @@ def prompt_time(default=None):
             return None
         val = val.strip()
         if not val:
-            fallback = default if default_display else now.strftime("%H%M")
-            print(f"  → {datetime.strptime(fallback, '%H%M').strftime('%I:%M %p')}")
-            return fallback
+            if default_display:
+                print(f"  → {datetime.strptime(default, '%H%M').strftime('%I:%M %p')}")
+                return default
+            print(f"  Enter a number 1–{len(presets)} or a time (HHMM).")
+            continue
         if val.isdigit() and 1 <= int(val) <= len(presets):
             chosen_t = presets[int(val) - 1][1]
             chosen = chosen_t.strftime("%H%M")
