@@ -328,10 +328,14 @@ def cmd_add(cfg):
     if time_str is None:
         print("Cancelled.")
         return
-    topic = _readline_or_cancel("Topic: ")
-    if topic is None:
-        print("Cancelled.")
-        return
+    while True:
+        topic = _readline_or_cancel("Topic: ")
+        if topic is None:
+            print("Cancelled.")
+            return
+        if topic.strip():
+            break
+        print("  Topic is required.")
     description = _readline_or_cancel("Description: ")
     if description is None:
         print("Cancelled.")
