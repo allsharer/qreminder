@@ -213,22 +213,49 @@ def prompt_time(default=None):
         return None
     if ans.strip().lower() != "y":
         return default or "0000"
-    prompt = f"Time (HHMM){f' [{default}]' if default else ''} [esc=cancel]: "
+
+    now = datetime.now()
+    presets = [
+        ("Now",       now),
+        ("+1 hour",   now + timedelta(hours=1)),
+        ("+2 hours",  now + timedelta(hours=2)),
+        ("+4 hours",  now + timedelta(hours=4)),
+        ("Morning",   now.replace(hour=9,  minute=0, second=0, microsecond=0)),
+        ("Noon",      now.replace(hour=12, minute=0, second=0, microsecond=0)),
+        ("Afternoon", now.replace(hour=15, minute=0, second=0, microsecond=0)),
+        ("Evening",   now.replace(hour=18, minute=0, second=0, microsecond=0)),
+        ("Night",     now.replace(hour=21, minute=0, second=0, microsecond=0)),
+    ]
+
+    print("Time:")
+    for i, (label, t) in enumerate(presets, 1):
+        print(f"  {i})  {label:<12} {t.strftime('%I:%M %p')}")
+
+    if default_display:
+        prompt = f"  #, or time (HHMM) [{default}] [esc=cancel]: "
+    else:
+        prompt = f"  #, or time (HHMM) [esc=cancel]: "
+
     while True:
         val = _readline_or_cancel(prompt)
         if val is None:
             return None
         val = val.strip()
         if not val:
-            fallback = default if default else datetime.now().strftime("%H%M")
+            fallback = default if default_display else now.strftime("%H%M")
             print(f"  → {datetime.strptime(fallback, '%H%M').strftime('%I:%M %p')}")
             return fallback
+        if val.isdigit() and 1 <= int(val) <= len(presets):
+            chosen_t = presets[int(val) - 1][1]
+            chosen = chosen_t.strftime("%H%M")
+            print(f"  → {chosen_t.strftime('%I:%M %p')}")
+            return chosen
         try:
             t = datetime.strptime(val, "%H%M")
             print(f"  → {t.strftime('%I:%M %p')}")
             return val
         except ValueError:
-            print("  Invalid time. Use HHMM (e.g. 0930).")
+            print(f"  Invalid. Enter a number 1–{len(presets)} or a time (HHMM).")
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
