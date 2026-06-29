@@ -526,6 +526,20 @@ def cmd_hide(refno_arg, cfg):
 
 
 def cmd_unhide(refno_arg, cfg):
+    if refno_arg is None:
+        reminders = load_reminders(cfg["data_file"])
+        hidden = load_hidden(cfg["hidden_file"])
+        candidates = [r for r in reminders if r[0] in hidden]
+        if not candidates:
+            print("No hidden reminders.")
+            return
+        items = [f"#{r[0]:<4} {format_dt(r[1])}  {r[2]}" for r in candidates]
+        chosen = _pick_multi_from_list("Select reminders to unhide:", items)
+        if chosen is None or not chosen:
+            print("Cancelled." if chosen is None else "Nothing selected.")
+            return
+        refno_arg = ",".join(candidates[i][0] for i in chosen)
+
     targets = {r.strip() for r in refno_arg.split(",")}
     hidden = load_hidden(cfg["hidden_file"])
     not_hidden = sorted(targets - hidden, key=lambda x: int(x) if x.isdigit() else 0)
@@ -786,8 +800,8 @@ examples:
                         help="Edit reminder #N (omit N to select interactively)")
     parser.add_argument("--hide", metavar="N[,N...]", nargs="?", const="",
                         help="Suppress reminder(s) from notifications (omit N to select interactively)")
-    parser.add_argument("--unhide", metavar="N[,N...]",
-                        help="Restore suppressed reminder(s) (comma-separated)")
+    parser.add_argument("--unhide", metavar="N[,N...]", nargs="?", const="",
+                        help="Restore suppressed reminder(s) (omit N to select interactively)")
     parser.add_argument("--delete", metavar="N[,N...]", nargs="?", const="",
                         help="Permanently delete reminder(s) (omit N to select interactively)")
     parser.add_argument("--clean", action="store_true",
@@ -820,8 +834,8 @@ examples:
         cmd_edit(args.edit or None, cfg)
     elif args.hide is not None:
         cmd_hide(args.hide or None, cfg)
-    elif args.unhide:
-        cmd_unhide(args.unhide, cfg)
+    elif args.unhide is not None:
+        cmd_unhide(args.unhide or None, cfg)
     elif args.delete is not None:
         cmd_delete(args.delete or None, cfg)
     elif args.clean:
