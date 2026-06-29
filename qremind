@@ -653,6 +653,35 @@ def cmd_delete(refno_arg, cfg):
         print(f"Reminder #{n} deleted.")
 
 
+def cmd_snooze(cfg):
+    snoozed = load_snoozed(cfg["snooze_file"])
+    now = datetime.now()
+
+    active = {r: exp for r, exp in snoozed.items()
+              if datetime.strptime(exp, "%Y%m%d%H%M") > now}
+    if not active:
+        print("No active snoozes.")
+        return
+
+    reminder_map = {r[0]: r for r in load_reminders(cfg["data_file"])}
+    entries = sorted(active.items(), key=lambda x: x[1])
+    items = [
+        f"#{refno:<4} {reminder_map[refno][2] if refno in reminder_map else '?'}"
+        f"  (until {datetime.strptime(exp, '%Y%m%d%H%M').strftime('%b %d, %Y %I:%M %p')})"
+        for refno, exp in entries
+    ]
+
+    chosen = _pick_multi_from_list("Select snoozes to cancel:", items)
+    if chosen is None or not chosen:
+        print("Cancelled." if chosen is None else "Nothing selected.")
+        return
+
+    for i in chosen:
+        del snoozed[entries[i][0]]
+    save_snoozed(cfg["snooze_file"], snoozed)
+    print(f"Cancelled {len(chosen)} snooze(s).")
+
+
 def cmd_clean(cfg):
     reminders = load_reminders(cfg["data_file"])
     hidden = load_hidden(cfg["hidden_file"])
@@ -848,6 +877,7 @@ examples:
   qremind --unhide 3,7,12                     Restore multiple reminders
   qremind --delete 3                          Permanently delete reminder #3
   qremind --delete 1,4,6,10                  Permanently delete multiple reminders
+  qremind --snooze                            View and cancel active snoozes
   qremind --clean                             Remove hidden reminders and renumber
   qremind --config                            Show current config
   qremind --config check_interval_minutes=30  Set check interval to 30 minutes
@@ -873,6 +903,8 @@ examples:
                         help="Restore suppressed reminder(s) (omit N to select interactively)")
     parser.add_argument("--delete", metavar="N[,N...]", nargs="?", const="",
                         help="Permanently delete reminder(s) (omit N to select interactively)")
+    parser.add_argument("--snooze", action="store_true",
+                        help="View and cancel active snoozes")
     parser.add_argument("--clean", action="store_true",
                         help="Remove hidden reminders and renumber")
     parser.add_argument("--daemon", action="store_true",
@@ -907,6 +939,8 @@ examples:
         cmd_unhide(args.unhide or None, cfg)
     elif args.delete is not None:
         cmd_delete(args.delete or None, cfg)
+    elif args.snooze:
+        cmd_snooze(cfg)
     elif args.clean:
         cmd_clean(cfg)
     elif args.daemon:
