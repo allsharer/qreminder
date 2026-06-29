@@ -99,7 +99,7 @@ qremind --config notification=notify-send              Set notification style: n
 qremind --config snooze_intervals=30m,1h,2h,3h,6h     Set snooze duration options
 ```
 
-Config is stored at `~/.config/qreminder/config.json`. Reminder data lives in `~/.config/qReminder/`.
+Config is stored at `~/.config/qreminder/config.json`. Reminder data (reminders, hidden list, snooze state) lives in `~/.local/share/qreminder/`, following the XDG Base Directory standard. Data files are migrated automatically from the legacy `~/.config/qReminder/` location on first run.
 
 ## Running as a daemon
 

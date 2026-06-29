@@ -18,10 +18,12 @@ CONFIG_DIR = Path.home() / ".config" / "qreminder"
 CONFIG_FILE = CONFIG_DIR / "config.json"
 PID_FILE = CONFIG_DIR / "daemon.pid"
 
+DATA_DIR = Path.home() / ".local" / "share" / "qreminder"
+
 DEFAULT_CONFIG = {
-    "data_file": str(Path.home() / ".config/qReminder/reminders.dat"),
-    "hidden_file": str(Path.home() / ".config/qReminder/hidden.txt"),
-    "snooze_file": str(Path.home() / ".config/qReminder/snoozed.json"),
+    "data_file": str(DATA_DIR / "reminders.dat"),
+    "hidden_file": str(DATA_DIR / "hidden.txt"),
+    "snooze_file": str(DATA_DIR / "snoozed.json"),
     "check_interval_minutes": 60,
     "notification": "zenity",  # "zenity" or "notify-send"
     "snooze_intervals": "30m,1h,2h,3h,6h,12h,24h",
@@ -43,6 +45,22 @@ def load_config():
 def save_config(cfg):
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(json.dumps(cfg, indent=2) + "\n")
+
+
+def migrate_data_if_needed():
+    """Move data files from legacy ~/.config/qReminder/ to ~/.local/share/qreminder/."""
+    old_dir = Path.home() / ".config" / "qReminder"
+    if not old_dir.exists():
+        return
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("reminders.dat", "hidden.txt", "snoozed.json"):
+        src, dst = old_dir / name, DATA_DIR / name
+        if src.exists() and not dst.exists():
+            src.rename(dst)
+    try:
+        old_dir.rmdir()  # removes only if now empty
+    except OSError:
+        pass
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
@@ -1019,6 +1037,7 @@ examples:
                         help="Show config (no args) or set key=value pairs")
 
     args = parser.parse_args()
+    migrate_data_if_needed()
     cfg = load_config()
 
     if args.show:
