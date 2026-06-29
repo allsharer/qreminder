@@ -71,6 +71,13 @@ Snoozed reminders are silently skipped each time the timer fires until the snooz
 
 With **notify-send**, all due reminders are sent as a single passive notification with no interactive buttons.
 
+### Managing snoozes (--snooze)
+
+`qremind --snooze` shows all due, unhidden reminders and their current snooze state. Use ↑/↓ to move and Space to toggle:
+
+- On an **unsnoozed** reminder: marks it for snoozing — a duration picker appears after you confirm
+- On a **snoozed** reminder: marks it for cancellation (reminder will fire on next check)
+
 ### Hiding and deleting reminders
 
 `qremind --hide`, `qremind --unhide`, and `qremind --delete` without arguments present an interactive multi-select list — use ↑/↓ to move, Space to toggle, Enter to confirm, ESC to cancel. `--hide` only shows visible reminders; `--unhide` only shows hidden ones.
@@ -86,9 +93,10 @@ qremind --unhide 3,7,12
 ## Configuration
 
 ```sh
-qremind --config                              Show current config
-qremind --config check_interval_minutes=30   Set check interval to 30 minutes
-qremind --config notification=notify-send     Use notify-send instead of zenity
+qremind --config                                       Show current config
+qremind --config check_interval_minutes=30             Set check interval to 30 minutes
+qremind --config notification=notify-send              Use notify-send instead of zenity
+qremind --config snooze_intervals=30m,1h,2h,3h,6h     Set snooze duration options
 ```
 
 Config is stored at `~/.config/qreminder/config.json`. Reminder data lives in `~/.config/qReminder/`.
