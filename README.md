@@ -48,7 +48,9 @@ Press ESC at any prompt to cancel without saving.
 
 ### Editing a reminder
 
-`qremind --edit N` opens an interactive prompt for each field of reminder #N, pre-filled with the current value. Press Enter to keep a field unchanged, type a new value to replace it, or press ESC to cancel without saving.
+`qremind --edit` presents an arrow-key list of all reminders — use ↑/↓ to move, Enter to select, ESC to cancel. You can also go directly to a reminder with `qremind --edit N`.
+
+Once a reminder is open, each field is pre-filled with its current value. Press Enter to keep a field unchanged, type a new value to replace it, or press ESC to cancel without saving.
 
 ### Notifications (--show)
 
