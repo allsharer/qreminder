@@ -95,7 +95,7 @@ qremind --unhide 3,7,12
 ```sh
 qremind --config                                       Show current config
 qremind --config check_interval_minutes=30             Set check interval to 30 minutes
-qremind --config notification=notify-send              Use notify-send instead of zenity
+qremind --config notification=notify-send              Set notification style: notify-send or zenity (default)
 qremind --config snooze_intervals=30m,1h,2h,3h,6h     Set snooze duration options
 ```
 

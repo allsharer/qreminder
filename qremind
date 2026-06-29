@@ -976,7 +976,7 @@ examples:
   qremind --clean                             Remove hidden reminders and renumber
   qremind --config                                      Show current config
   qremind --config check_interval_minutes=30            Set check interval to 30 minutes
-  qremind --config notification=notify-send             Switch to desktop notification style
+  qremind --config notification=notify-send             Set notification style (notify-send or zenity)
   qremind --config snooze_intervals=30m,1h,2h,3h,6h    Set snooze duration options
   qremind --install                           Install systemd user timer (recommended)
   qremind --install-autostart                 Install GNOME autostart (daemon mode)
