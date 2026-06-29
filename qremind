@@ -11,6 +11,7 @@ import signal
 import subprocess
 import argparse
 import calendar
+import html
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -160,11 +161,12 @@ def _parse_snooze_intervals(interval_str):
 
 def _zenity_reminder(refno, text):
     """Show a single reminder in zenity. Returns 'hide', 'snooze', 'delete', or 'dismiss'."""
+    markup = f'<span size="x-large">{html.escape(text)}</span>'
     result = subprocess.run(
         [
             "zenity", "--question",
             "--title", f"Reminder Due (#{refno})",
-            "--text", text,
+            "--text", markup,
             "--width=500",
             "--ok-label", "Dismiss",
             "--cancel-label", "Hide",
