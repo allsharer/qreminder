@@ -29,6 +29,7 @@ qremind --edit                           Select a reminder to edit interactively
 qremind --edit N                         Edit reminder #N directly
 qremind --hide                           Select reminders to hide interactively
 qremind --hide N[,N...]                  Suppress reminder(s) from notifications
+qremind --unhide                         Select hidden reminders to restore interactively
 qremind --unhide N[,N...]                Restore suppressed reminder(s)
 qremind --delete                         Select reminders to delete interactively
 qremind --delete N[,N...]               Permanently delete reminder(s)
@@ -69,7 +70,7 @@ With **notify-send**, all due reminders are sent as a single passive notificatio
 
 ### Hiding and deleting reminders
 
-`qremind --hide` and `qremind --delete` without arguments present an interactive multi-select list — use ↑/↓ to move, Space to toggle, Enter to confirm, ESC to cancel. `--hide` only shows reminders that are not already hidden.
+`qremind --hide`, `qremind --unhide`, and `qremind --delete` without arguments present an interactive multi-select list — use ↑/↓ to move, Space to toggle, Enter to confirm, ESC to cancel. `--hide` only shows visible reminders; `--unhide` only shows hidden ones.
 
 You can also target specific reminders directly using comma-separated IDs:
 
