@@ -166,21 +166,21 @@ def _zenity_reminder(refno, text):
             "--title", f"Reminder Due (#{refno})",
             "--text", text,
             "--width=500",
-            "--ok-label", "Hide",
-            "--cancel-label", "Dismiss",
+            "--ok-label", "Dismiss",
+            "--cancel-label", "Hide",
             "--extra-button", "Snooze",
             "--extra-button", "Delete",
         ],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
-        return "hide"
+        return "dismiss"
     label = result.stdout.strip()
     if label == "Snooze":
         return "snooze"
     if label == "Delete":
         return "delete"
-    return "dismiss"
+    return "hide"
 
 
 def _zenity_snooze_picker(intervals):
