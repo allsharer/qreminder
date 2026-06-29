@@ -162,6 +162,7 @@ def prompt_date(default=None):
     now = datetime.now()
 
     presets = [
+        ("Today",      now),
         ("1 day",      now + timedelta(days=1)),
         ("3 days",     now + timedelta(days=3)),
         ("1 week",     now + timedelta(weeks=1)),
