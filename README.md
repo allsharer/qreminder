@@ -38,7 +38,7 @@ qremind --status                         Show config and timer/daemon status
 
 `qremind --add` walks through each field interactively:
 
-- **Date** — choose from preset intervals (1 day, 3 days, 1 week, 2 weeks, 1/3/6 months, 1 year) or enter a date manually (`YYYYMMDD`); a selection is required
+- **Date** — choose from preset intervals (Today, 1 day, 3 days, 1 week, 2 weeks, 1/3/6 months, 1 year) or enter a date manually (`YYYYMMDD`); a selection is required
 - **Include time?** — defaults to no (Enter = N); enter `y` to add a time
 - **Time** — choose from presets (+1/2/4 hours, Morning, Noon, Afternoon, Evening, Night) or enter manually (`HHMM`); a selection is required
 - **Topic** — free text; required
