@@ -60,11 +60,14 @@ Once a reminder is open, each field is pre-filled with its current value. Press 
 
 `qremind --show` checks for due reminders and surfaces them as desktop notifications. This is what the systemd timer and daemon call automatically.
 
-With **zenity** (default), each due reminder appears in its own dialog with three buttons:
+With **zenity** (default), each due reminder appears in its own dialog with four buttons:
 
 - **Hide** — suppresses the reminder from future notifications (reversible with `--unhide`)
+- **Snooze** — delays the next notification by a chosen interval; a follow-up dialog offers 30 min, 1h, 2h, 3h, 6h, 12h, or 24h
 - **Delete** — permanently removes the reminder
 - **Dismiss** — closes the dialog without any action
+
+Snoozed reminders are silently skipped each time the timer fires until the snooze expires, at which point they resume firing normally.
 
 With **notify-send**, all due reminders are sent as a single passive notification with no interactive buttons.
 
