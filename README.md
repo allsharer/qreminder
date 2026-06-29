@@ -25,9 +25,12 @@ qremind --install
 ```
 qremind --add                            Add a new reminder interactively
 qremind --list                           List all reminders with status
-qremind --edit N                         Edit reminder #N
+qremind --edit                           Select a reminder to edit interactively
+qremind --edit N                         Edit reminder #N directly
+qremind --hide                           Select reminders to hide interactively
 qremind --hide N[,N...]                  Suppress reminder(s) from notifications
 qremind --unhide N[,N...]                Restore suppressed reminder(s)
+qremind --delete                         Select reminders to delete interactively
 qremind --delete N[,N...]               Permanently delete reminder(s)
 qremind --clean                          Remove all hidden reminders and renumber
 qremind --show                           Check and display any due reminders now
@@ -64,9 +67,11 @@ With **zenity** (default), each due reminder appears in its own dialog with thre
 
 With **notify-send**, all due reminders are sent as a single passive notification with no interactive buttons.
 
-### Bulk operations
+### Hiding and deleting reminders
 
-Multiple reminders can be targeted in one call using comma-separated IDs:
+`qremind --hide` and `qremind --delete` without arguments present an interactive multi-select list — use ↑/↓ to move, Space to toggle, Enter to confirm, ESC to cancel. `--hide` only shows reminders that are not already hidden.
+
+You can also target specific reminders directly using comma-separated IDs:
 
 ```sh
 qremind --delete 1,4,6,10
