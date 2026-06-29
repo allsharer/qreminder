@@ -50,17 +50,30 @@ def save_config(cfg):
 def migrate_data_if_needed():
     """Move data files from legacy ~/.config/qReminder/ to ~/.local/share/qreminder/."""
     old_dir = Path.home() / ".config" / "qReminder"
-    if not old_dir.exists():
-        return
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    for name in ("reminders.dat", "hidden.txt", "snoozed.json"):
-        src, dst = old_dir / name, DATA_DIR / name
-        if src.exists() and not dst.exists():
-            src.rename(dst)
+    if old_dir.exists():
+        for name in ("reminders.dat", "hidden.txt", "snoozed.json"):
+            src, dst = old_dir / name, DATA_DIR / name
+            if src.exists() and not dst.exists():
+                src.rename(dst)
+        try:
+            old_dir.rmdir()  # removes only if now empty
+        except OSError:
+            pass
+    # Patch config.json if it still references the legacy paths.
+    if not CONFIG_FILE.exists():
+        return
     try:
-        old_dir.rmdir()  # removes only if now empty
-    except OSError:
-        pass
+        saved = json.loads(CONFIG_FILE.read_text())
+    except Exception:
+        return
+    changed = False
+    for key in ("data_file", "hidden_file", "snooze_file"):
+        if key in saved and str(old_dir) in saved[key]:
+            saved[key] = str(DATA_DIR / Path(saved[key]).name)
+            changed = True
+    if changed:
+        CONFIG_FILE.write_text(json.dumps(saved, indent=2) + "\n")
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
