@@ -21,9 +21,20 @@ PID_FILE = CONFIG_DIR / "daemon.pid"
 DEFAULT_CONFIG = {
     "data_file": str(Path.home() / ".config/qReminder/reminders.dat"),
     "hidden_file": str(Path.home() / ".config/qReminder/hidden.txt"),
+    "snooze_file": str(Path.home() / ".config/qReminder/snoozed.json"),
     "check_interval_minutes": 60,
     "notification": "zenity",  # "zenity" or "notify-send"
 }
+
+SNOOZE_OPTIONS = [
+    ("30 minutes",  30),
+    ("1 hour",      60),
+    ("2 hours",    120),
+    ("3 hours",    180),
+    ("6 hours",    360),
+    ("12 hours",   720),
+    ("24 hours",  1440),
+]
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -79,6 +90,21 @@ def save_hidden(hidden_file, hidden):
     Path(hidden_file).write_text(content + "\n" if content else "")
 
 
+def load_snoozed(snooze_file):
+    path = Path(snooze_file)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_snoozed(snooze_file, snoozed):
+    Path(snooze_file).parent.mkdir(parents=True, exist_ok=True)
+    Path(snooze_file).write_text(json.dumps(snoozed, indent=2) + "\n")
+
+
 def next_refno(reminders):
     if not reminders:
         return "1"
@@ -92,7 +118,7 @@ def format_dt(datetime_str):
 # ── Notification ──────────────────────────────────────────────────────────────
 
 def _zenity_reminder(refno, text):
-    """Show a single reminder in zenity. Returns 'hide', 'delete', or 'dismiss'."""
+    """Show a single reminder in zenity. Returns 'hide', 'snooze', 'delete', or 'dismiss'."""
     result = subprocess.run(
         [
             "zenity", "--question",
@@ -101,15 +127,38 @@ def _zenity_reminder(refno, text):
             "--width=500",
             "--ok-label", "Hide",
             "--cancel-label", "Dismiss",
+            "--extra-button", "Snooze",
             "--extra-button", "Delete",
         ],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
         return "hide"
-    if result.stdout.strip() == "Delete":
+    label = result.stdout.strip()
+    if label == "Snooze":
+        return "snooze"
+    if label == "Delete":
         return "delete"
     return "dismiss"
+
+
+def _zenity_snooze_picker():
+    """Show a snooze duration list. Returns minutes chosen, or None on cancel."""
+    result = subprocess.run(
+        [
+            "zenity", "--list",
+            "--title", "Snooze Reminder",
+            "--text", "Snooze for how long?",
+            "--column", "Duration",
+            "--hide-header",
+            "--width=250", "--height=280",
+        ] + [label for label, _ in SNOOZE_OPTIONS],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return None
+    label = result.stdout.strip()
+    return next((mins for lbl, mins in SNOOZE_OPTIONS if lbl == label), None)
 
 
 # ── Input helpers ─────────────────────────────────────────────────────────────
@@ -356,12 +405,23 @@ def prompt_time(default=None):
 def cmd_show(cfg):
     reminders = load_reminders(cfg["data_file"])
     hidden = load_hidden(cfg["hidden_file"])
+    snoozed = load_snoozed(cfg["snooze_file"])
     now = datetime.now()
     method = cfg.get("notification", "zenity")
 
+    # Clear expired snoozes
+    expired = {r for r, exp in snoozed.items()
+               if datetime.strptime(exp, "%Y%m%d%H%M") <= now}
+    if expired:
+        for r in expired:
+            del snoozed[r]
+        save_snoozed(cfg["snooze_file"], snoozed)
+
     due = [
         r for r in reminders
-        if r[0] not in hidden and datetime.strptime(r[1], "%Y%m%d%H%M") <= now
+        if r[0] not in hidden
+        and r[0] not in snoozed
+        and datetime.strptime(r[1], "%Y%m%d%H%M") <= now
     ]
     if not due:
         return
@@ -385,6 +445,12 @@ def cmd_show(cfg):
             to_hide.add(refno)
         elif action == "delete":
             to_delete.add(refno)
+        elif action == "snooze":
+            minutes = _zenity_snooze_picker()
+            if minutes is not None:
+                expiry = (now + timedelta(minutes=minutes)).strftime("%Y%m%d%H%M")
+                snoozed[refno] = expiry
+                save_snoozed(cfg["snooze_file"], snoozed)
 
     if to_hide:
         save_hidden(cfg["hidden_file"], hidden | to_hide)
@@ -393,6 +459,9 @@ def cmd_show(cfg):
         save_reminders(cfg["data_file"], remaining)
         if hidden & to_delete:
             save_hidden(cfg["hidden_file"], (hidden | to_hide) - to_delete)
+        for r in to_delete:
+            snoozed.pop(r, None)
+        save_snoozed(cfg["snooze_file"], snoozed)
 
 
 def cmd_list(cfg):
