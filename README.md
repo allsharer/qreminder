@@ -93,6 +93,24 @@ qremind --hide 3,7,12
 qremind --unhide 3,7,12
 ```
 
+## Web UI
+
+`qremind --web` starts a local web server and opens the UI in your browser:
+
+```sh
+qremind --web          # http://localhost:8765
+qremind --web 9000     # custom port
+```
+
+The web UI provides full access to your reminders without the terminal:
+
+- **Filter bar** — switch between All, Due, This Month, Upcoming, and Hidden views; each tab shows a live count
+- **Add / Edit** — date and time preset buttons (Today, +1 day, +1 week, Morning, Noon, etc.) plus free-form input fields
+- **Actions per reminder** — Edit, Hide/Unhide, Snooze (uses your configured `snooze_intervals`), Unsnooze, Delete
+- **Dark mode** — follows your system preference automatically
+
+The server only listens on `127.0.0.1` and reads/writes the same data files as the CLI. Press Ctrl+C in the terminal to stop it.
+
 ## Configuration
 
 ```sh
