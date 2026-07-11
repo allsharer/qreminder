@@ -1131,7 +1131,7 @@ examples:
     elif args.config is not None:
         cmd_config(args.config, cfg)
     elif args.web is not None:
-        web_py = Path(__file__).parent / "web.py"
+        web_py = Path(__file__).resolve().parent / "web.py"
         os.execv(sys.executable, [sys.executable, str(web_py), args.web])
     else:
         parser.print_help()
