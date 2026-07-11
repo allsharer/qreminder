@@ -25,6 +25,7 @@ qremind --install
 ```
 qremind --add                            Add a new reminder interactively
 qremind --list                           List all reminders with status
+qremind --month                          List pending reminders for the current calendar month
 qremind --edit                           Select a reminder to edit interactively
 qremind --edit N                         Edit reminder #N directly
 qremind --hide                           Select reminders to hide interactively

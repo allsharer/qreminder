@@ -583,6 +583,40 @@ def cmd_list(cfg):
         print(f"       {desc}\n")
 
 
+def cmd_month(cfg):
+    reminders = load_reminders(cfg["data_file"])
+    if not reminders:
+        print("No reminders.")
+        return
+
+    hidden = load_hidden(cfg["hidden_file"])
+    now = datetime.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_end = month_start.replace(
+        month=month_start.month % 12 + 1,
+        year=month_start.year + (1 if month_start.month == 12 else 0),
+    )
+
+    pending = [
+        (refno, dt_str, topic, desc)
+        for refno, dt_str, topic, desc in reminders
+        if refno not in hidden
+        and month_start <= datetime.strptime(dt_str, "%Y%m%d%H%M") < month_end
+    ]
+
+    if not pending:
+        print(f"No pending reminders for {now.strftime('%B %Y')}.")
+        return
+
+    print(f"Pending reminders for {now.strftime('%B %Y')}:\n")
+    for refno, dt_str, topic, desc in pending:
+        reminder_time = datetime.strptime(dt_str, "%Y%m%d%H%M")
+        status = "Due" if reminder_time <= now else "Upcoming"
+        print(f"#{refno:>3}  {format_dt(dt_str)}  [{status}]")
+        print(f"       Topic: {topic}")
+        print(f"       {desc}\n")
+
+
 def cmd_add(cfg):
     date_str = prompt_date()
     if date_str is None:
@@ -997,6 +1031,7 @@ def main():
 examples:
   qremind --add                               Add a new reminder interactively
   qremind --list                              List all reminders with status
+  qremind --month                             List pending reminders for the current month
   qremind --edit                              Select a reminder to edit interactively
   qremind --edit 2                            Edit reminder #2 directly
   qremind --hide 3                            Suppress reminder #3 from notifications
@@ -1022,6 +1057,8 @@ examples:
                         help="Check and display due reminders (called by timer/daemon)")
     parser.add_argument("--list", action="store_true",
                         help="List all reminders")
+    parser.add_argument("--month", action="store_true",
+                        help="List non-hidden reminders for the current calendar month")
     parser.add_argument("--add", action="store_true",
                         help="Add a new reminder interactively")
     parser.add_argument("--edit", metavar="N", nargs="?", const="",
@@ -1059,6 +1096,8 @@ examples:
         cmd_show(cfg)
     elif args.list:
         cmd_list(cfg)
+    elif args.month:
+        cmd_month(cfg)
     elif args.add:
         cmd_add(cfg)
     elif args.edit is not None:
