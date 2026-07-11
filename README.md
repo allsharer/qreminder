@@ -26,6 +26,8 @@ qremind --install
 qremind --add                            Add a new reminder interactively
 qremind --list                           List all reminders with status
 qremind --month                          List pending reminders for the current calendar month
+qremind --web                            Start the web UI at http://localhost:8765
+qremind --web 9000                       Start the web UI on a custom port
 qremind --edit                           Select a reminder to edit interactively
 qremind --edit N                         Edit reminder #N directly
 qremind --hide                           Select reminders to hide interactively

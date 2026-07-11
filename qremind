@@ -1032,6 +1032,8 @@ examples:
   qremind --add                               Add a new reminder interactively
   qremind --list                              List all reminders with status
   qremind --month                             List pending reminders for the current month
+  qremind --web                               Start the web UI at http://localhost:8765
+  qremind --web 9000                          Start the web UI on a custom port
   qremind --edit                              Select a reminder to edit interactively
   qremind --edit 2                            Edit reminder #2 directly
   qremind --hide 3                            Suppress reminder #3 from notifications
@@ -1059,6 +1061,8 @@ examples:
                         help="List all reminders")
     parser.add_argument("--month", action="store_true",
                         help="List non-hidden reminders for the current calendar month")
+    parser.add_argument("--web", metavar="PORT", nargs="?", const="8765",
+                        help="Start the web UI (default port 8765)")
     parser.add_argument("--add", action="store_true",
                         help="Add a new reminder interactively")
     parser.add_argument("--edit", metavar="N", nargs="?", const="",
@@ -1126,6 +1130,9 @@ examples:
         cmd_status(cfg)
     elif args.config is not None:
         cmd_config(args.config, cfg)
+    elif args.web is not None:
+        web_py = Path(__file__).parent / "web.py"
+        os.execv(sys.executable, [sys.executable, str(web_py), args.web])
     else:
         parser.print_help()
 
