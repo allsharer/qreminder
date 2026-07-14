@@ -109,7 +109,7 @@ The web UI provides full access to your reminders without the terminal:
 - **Actions per reminder** — Edit, Hide/Unhide, Snooze (uses your configured `snooze_intervals`), Unsnooze, Delete
 - **Dark mode** — follows your system preference automatically
 
-The server only listens on `127.0.0.1` and reads/writes the same data files as the CLI. Press Ctrl+C in the terminal to stop it.
+The server only listens on `127.0.0.1` and reads/writes the same data files as the CLI. It shuts down automatically about 10 seconds after the browser tab is closed — or press Ctrl+C in the terminal to stop it immediately.
 
 ## Configuration
 
