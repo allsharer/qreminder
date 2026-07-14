@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Local web server providing a browser UI for qremind."""
 
+import os
 import sys
 import json
+import signal
+import time
 import http.server
 import threading
 import webbrowser
@@ -361,6 +364,7 @@ document.getElementById('editOv').addEventListener('click',e=>{if(e.target===e.c
 document.getElementById('snzOv').addEventListener('click',e=>{if(e.target===e.currentTarget)closeSnz();});
 buildP();load();
 </script>
+<script>setInterval(()=>fetch('/ping',{method:'POST'}),3000);</script>
 </body>
 </html>"""
 
@@ -370,6 +374,21 @@ def run(cfg, port=8765):
     intervals  = parse_snooze_intervals(cfg.get("snooze_intervals", DEFAULT_CONFIG["snooze_intervals"]))
     snooze_js  = json.dumps(intervals)
     html_bytes = build_html(snooze_js).encode()
+
+    # ── Browser watchdog ──────────────────────────────────────────────────────
+    _state = {"last_ping": time.time()}
+    _PING_TIMEOUT = 10
+
+    def _watchdog():
+        time.sleep(5)  # grace period for the browser to load the first page
+        while True:
+            time.sleep(3)
+            if time.time() - _state["last_ping"] > _PING_TIMEOUT:
+                print("\nNo browser activity detected — shutting down.", flush=True)
+                os.kill(os.getpid(), signal.SIGINT)
+                break
+
+    threading.Thread(target=_watchdog, daemon=True).start()
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_): pass
@@ -433,7 +452,11 @@ def run(cfg, port=8765):
 
         def do_POST(self):
             ps = self.parts()
-            if ps == ["api", "reminders"]:
+            if ps == ["ping"]:
+                _state["last_ping"] = time.time()
+                self.send_response(204)
+                self.end_headers()
+            elif ps == ["api", "reminders"]:
                 data      = self.read_body()
                 reminders = load_reminders(cfg["data_file"])
                 refno     = next_refno(reminders)
